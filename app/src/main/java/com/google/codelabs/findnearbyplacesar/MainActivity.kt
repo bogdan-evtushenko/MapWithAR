@@ -203,7 +203,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             getCurrentLocation {
                 val pos = CameraPosition.fromLatLngZoom(it.latLng, 13f)
                 googleMap.moveCamera(CameraUpdateFactory.newCameraPosition(pos))
-                getNearbyPlaces(it)
+                //getNearbyPlaces(it)
             }
             googleMap.setOnMarkerClickListener { marker ->
                 val tag = marker.tag
@@ -271,7 +271,6 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             }
         )
     }
-
 
     private fun isSupportedDevice(): Boolean {
         val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
