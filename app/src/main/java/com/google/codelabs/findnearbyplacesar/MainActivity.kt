@@ -43,6 +43,8 @@ import com.google.codelabs.findnearbyplacesar.api.NearbyPlacesResponse
 import com.google.codelabs.findnearbyplacesar.api.PlacesService
 import com.google.codelabs.findnearbyplacesar.ar.PlaceNode
 import com.google.codelabs.findnearbyplacesar.ar.PlacesArFragment
+import com.google.codelabs.findnearbyplacesar.model.Geometry
+import com.google.codelabs.findnearbyplacesar.model.GeometryLocation
 import com.google.codelabs.findnearbyplacesar.model.Place
 import com.google.codelabs.findnearbyplacesar.model.getPositionVector
 import retrofit2.Call
@@ -73,6 +75,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private var currentLocation: Location? = null
     private var map: GoogleMap? = null
 
+    private var anchorNodes: MutableList<AnchorNode> = mutableListOf()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (!isSupportedDevice()) {
@@ -82,7 +86,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         arFragment = supportFragmentManager.findFragmentById(R.id.ar_fragment) as PlacesArFragment
         mapFragment =
-            supportFragmentManager.findFragmentById(R.id.maps_fragment) as SupportMapFragment
+                supportFragmentManager.findFragmentById(R.id.maps_fragment) as SupportMapFragment
 
         sensorManager = getSystemService()!!
         placesService = PlacesService.create()
@@ -96,16 +100,16 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         super.onResume()
         sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)?.also {
             sensorManager.registerListener(
-                this,
-                it,
-                SensorManager.SENSOR_DELAY_NORMAL
+                    this,
+                    it,
+                    SensorManager.SENSOR_DELAY_NORMAL
             )
         }
         sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.also {
             sensorManager.registerListener(
-                this,
-                it,
-                SensorManager.SENSOR_DELAY_NORMAL
+                    this,
+                    it,
+                    SensorManager.SENSOR_DELAY_NORMAL
             )
         }
     }
@@ -120,6 +124,14 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             // Create anchor
             val anchor = hitResult.createAnchor()
             anchorNode = AnchorNode(anchor)
+            anchorNodes.forEach {
+                it.children.forEach { child ->
+                    println("Here node : $child")
+                    it.removeChild(child)
+                }
+            }
+            anchorNodes.clear()
+            anchorNodes.add(anchorNode!!)
             anchorNode?.setParent(arFragment.arSceneView.scene)
             addPlaces(anchorNode!!)
         }
@@ -141,21 +153,13 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         for (place in places) {
             // Add the place in AR
             val placeNode = PlaceNode(this, place)
+
             placeNode.setParent(anchorNode)
+            anchorNode.addChild(placeNode)
+            println("After add : ${anchorNode.children.size}")
             placeNode.localPosition = place.getPositionVector(orientationAngles[0], currentLocation.latLng)
             placeNode.setOnTapListener { _, _ ->
                 showInfoWindow(place)
-            }
-
-            // Add the place in maps
-            map?.let {
-                val marker = it.addMarker(
-                    MarkerOptions()
-                        .position(place.geometry.location.latLng)
-                        .title(place.name)
-                )
-                marker.tag = place
-                markers.add(marker)
             }
         }
     }
@@ -182,12 +186,12 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private fun setUpMaps() {
         mapFragment.getMapAsync { googleMap ->
             if (ActivityCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                ) != PackageManager.PERMISSION_GRANTED
+                            this,
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                    ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                    ) != PackageManager.PERMISSION_GRANTED
             ) {
                 // TODO: Consider calling
                 //    ActivityCompat#requestPermissions
@@ -213,18 +217,45 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 showInfoWindow(tag)
                 return@setOnMarkerClickListener true
             }
+            googleMap.setOnMapClickListener { latLng ->
+                println("Here $latLng")
+                places = listOf(Place(
+                        id = "random_id",
+                        icon = "hello",
+                        name = "my test place",
+                        geometry = Geometry(
+                                GeometryLocation(
+                                        latLng.latitude,
+                                        latLng.longitude
+                                )
+                        )
+
+                ))
+
+                map?.clear()
+                map?.let {
+                    val marker = it.addMarker(
+                            MarkerOptions()
+                                    .position(latLng)
+                                    .title("Name")
+                    )
+                    // marker.tag = place
+                    markers.clear()
+                    markers.add(marker)
+                }
+            }
             map = googleMap
         }
     }
 
     private fun getCurrentLocation(onSuccess: (Location) -> Unit) {
         if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
+                        this,
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                ) != PackageManager.PERMISSION_GRANTED
         ) {
             // TODO: Consider calling
             //    ActivityCompat#requestPermissions
@@ -246,29 +277,29 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private fun getNearbyPlaces(location: Location) {
         val apiKey = this.getString(R.string.google_maps_key)
         placesService.nearbyPlaces(
-            apiKey = apiKey,
-            location = "${location.latitude},${location.longitude}",
-            radiusInMeters = 2000,
-            placeType = "park"
+                apiKey = apiKey,
+                location = "${location.latitude},${location.longitude}",
+                radiusInMeters = 2000,
+                placeType = "park"
         ).enqueue(
-            object : Callback<NearbyPlacesResponse> {
-                override fun onFailure(call: Call<NearbyPlacesResponse>, t: Throwable) {
-                    Log.e(TAG, "Failed to get nearby places", t)
-                }
-
-                override fun onResponse(
-                    call: Call<NearbyPlacesResponse>,
-                    response: Response<NearbyPlacesResponse>
-                ) {
-                    if (!response.isSuccessful) {
-                        Log.e(TAG, "Failed to get nearby places")
-                        return
+                object : Callback<NearbyPlacesResponse> {
+                    override fun onFailure(call: Call<NearbyPlacesResponse>, t: Throwable) {
+                        Log.e(TAG, "Failed to get nearby places", t)
                     }
 
-                    val places = response.body()?.results ?: emptyList()
-                    this@MainActivity.places = places
+                    override fun onResponse(
+                            call: Call<NearbyPlacesResponse>,
+                            response: Response<NearbyPlacesResponse>
+                    ) {
+                        if (!response.isSuccessful) {
+                            Log.e(TAG, "Failed to get nearby places")
+                            return
+                        }
+
+                        val places = response.body()?.results ?: emptyList()
+                        this@MainActivity.places = places
+                    }
                 }
-            }
         )
     }
 
@@ -277,7 +308,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         val openGlVersionString = activityManager.deviceConfigurationInfo.glEsVersion
         if (openGlVersionString.toDouble() < 3.0) {
             Toast.makeText(this, "Sceneform requires OpenGL ES 3.0 or later", Toast.LENGTH_LONG)
-                .show()
+                    .show()
             finish()
             return false
         }
@@ -299,10 +330,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         // Update rotation matrix, which is needed to update orientation angles.
         SensorManager.getRotationMatrix(
-            rotationMatrix,
-            null,
-            accelerometerReading,
-            magnetometerReading
+                rotationMatrix,
+                null,
+                accelerometerReading,
+                magnetometerReading
         )
         SensorManager.getOrientation(rotationMatrix, orientationAngles)
     }
