@@ -126,7 +126,6 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             anchorNode = AnchorNode(anchor)
             anchorNodes.forEach {
                 it.children.forEach { child ->
-                    println("Here node : $child")
                     it.removeChild(child)
                 }
             }
@@ -156,7 +155,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
             placeNode.setParent(anchorNode)
             anchorNode.addChild(placeNode)
-            println("After add : ${anchorNode.children.size}")
+
             placeNode.localPosition = place.getPositionVector(orientationAngles[0], currentLocation.latLng)
             placeNode.setOnTapListener { _, _ ->
                 showInfoWindow(place)
@@ -218,7 +217,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 return@setOnMarkerClickListener true
             }
             googleMap.setOnMapClickListener { latLng ->
-                println("Here $latLng")
+                println("Latlng: $latLng")
                 places = listOf(Place(
                         id = "random_id",
                         icon = "hello",
